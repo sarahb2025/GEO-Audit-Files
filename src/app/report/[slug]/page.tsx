@@ -1,0 +1,823 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+interface ClientData {
+  id: string;
+  name: string;
+  url: string;
+  status: string;
+  audit_id: string | null;
+  report_slug: string;
+}
+
+interface AuditData {
+  id: string;
+  status: string;
+  visibility_rate: number | null;
+  total_queries: number | null;
+  total_mentioned: number | null;
+  dashboard_url: string | null;
+  summary_json: SummaryJson | null;
+  engines: string[];
+  completed_at: string | null;
+  progress_current: number;
+  progress_total: number;
+  progress_message: string | null;
+}
+
+interface EngineStats {
+  display_name: string;
+  visibility_rate: number;
+  brand_mentioned: number;
+  total_queries: number;
+  url_cited_count: number;
+  url_citation_rate: number;
+  average_rank: number | null;
+}
+
+interface CategoryStats {
+  total_queries: number;
+  brand_mentioned: number;
+  visibility_rate: number;
+}
+
+interface SummaryJson {
+  audit_metadata: {
+    brand: string;
+    generated_at: string;
+    total_prompts: number;
+    total_queries: number;
+    errors: number;
+  };
+  overall_visibility: {
+    brand_mentioned_count: number;
+    visibility_rate_percent: number;
+  };
+  engine_breakdown: Record<string, EngineStats>;
+  category_performance: Record<string, CategoryStats>;
+  competitor_analysis: {
+    mention_counts: Record<string, number>;
+    most_mentioned: string | null;
+  };
+  sentiment_breakdown: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+}
+
+const ENGINE_LABELS: Record<string, string> = {
+  openai: "ChatGPT",
+  anthropic: "Claude",
+  google: "Gemini",
+  perplexity: "Perplexity",
+  xai: "Grok",
+  google_ai_mode: "Google AI Mode",
+  google_ai_overview: "Google AI Overview",
+};
+
+function rateColor(rate: number) {
+  if (rate >= 50) return { text: "text-green-400", bar: "bg-green-500", badge: "bg-green-900 text-green-300" };
+  if (rate >= 25) return { text: "text-orange-400", bar: "bg-orange-500", badge: "bg-orange-900 text-orange-300" };
+  return { text: "text-red-400", bar: "bg-red-500", badge: "bg-red-900 text-red-300" };
+}
+
+function priorityLabel(gap: number) {
+  if (gap >= 70) return { label: "Critical", cls: "bg-red-600 text-white" };
+  if (gap >= 50) return { label: "High", cls: "bg-orange-600 text-white" };
+  if (gap >= 30) return { label: "Medium", cls: "bg-yellow-600 text-black" };
+  return { label: "Low", cls: "bg-green-600 text-white" };
+}
+
+export default function ReportPage() {
+  const { slug } = useParams<{ slug: string }>();
+  const [client, setClient] = useState<ClientData | null>(null);
+  const [audit, setAudit] = useState<AuditData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  const fetchReport = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/report/${slug}`);
+      if (!res.ok) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setClient(data.client);
+      setAudit(data.audit);
+      setLoading(false);
+    } catch {
+      setNotFound(true);
+      setLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
+
+  // Realtime subscription for in-progress audits
+  useEffect(() => {
+    if (!audit?.id || audit.status === "completed" || audit.status === "failed")
+      return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`report-${audit.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "geo_audits",
+          filter: `id=eq.${audit.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as AuditData;
+          setAudit((prev) => (prev ? { ...prev, ...updated } : updated));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [audit?.id, audit?.status]);
+
+  const brandedHeader = (
+    <header className="bg-black text-white py-6 border-b-4 border-orange-500">
+      <div className="max-w-6xl mx-auto px-4 flex items-center justify-between">
+        <div>
+          <h1
+            className="text-3xl font-bold tracking-widest uppercase"
+            style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+          >
+            BALMER AGENCY
+          </h1>
+          <p className="text-xs text-gray-400 uppercase tracking-wider">
+            AI Visibility Audit Report
+          </p>
+        </div>
+        {client && (
+          <div className="text-right">
+            <p
+              className="text-2xl font-bold uppercase tracking-wider"
+              style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+            >
+              {client.name}
+            </p>
+            <p className="text-sm text-gray-400">{client.url}</p>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-950">
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap"
+          rel="stylesheet"
+        />
+        {brandedHeader}
+        <div className="text-center py-20 text-gray-500">
+          Loading report...
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-gray-950">
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap"
+          rel="stylesheet"
+        />
+        {brandedHeader}
+        <div className="max-w-lg mx-auto px-4 py-16 text-center">
+          <h2 className="text-xl font-bold text-white mb-2">
+            Report Not Found
+          </h2>
+          <p className="text-gray-400">
+            This report link is invalid or has been removed.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const isRunning =
+    audit && (audit.status === "running" || audit.status === "pending");
+  const isCompleted = audit?.status === "completed";
+  const isFailed = audit?.status === "failed";
+
+  const progressPercent =
+    audit && audit.progress_total > 0
+      ? Math.round((audit.progress_current / audit.progress_total) * 100)
+      : 0;
+
+  const summary = audit?.summary_json as SummaryJson | null;
+  const engineBreakdown = summary?.engine_breakdown;
+  const categoryPerf = summary?.category_performance;
+  const competitorAnalysis = summary?.competitor_analysis;
+  const sentimentBreakdown = summary?.sentiment_breakdown;
+
+  const visRate = audit?.visibility_rate || 0;
+  const visColors = rateColor(visRate);
+
+  // Sort engines by visibility rate descending
+  const sortedEngines = engineBreakdown
+    ? Object.entries(engineBreakdown).sort(
+        (a, b) => b[1].visibility_rate - a[1].visibility_rate
+      )
+    : [];
+
+  // Sort categories by visibility rate descending
+  const sortedCategories = categoryPerf
+    ? Object.entries(categoryPerf).sort(
+        (a, b) => b[1].visibility_rate - a[1].visibility_rate
+      )
+    : [];
+
+  // Sort competitors by mention count
+  const sortedCompetitors = competitorAnalysis?.mention_counts
+    ? Object.entries(competitorAnalysis.mention_counts).sort(
+        (a, b) => b[1] - a[1]
+      )
+    : [];
+
+  const totalSentiment =
+    (sentimentBreakdown?.positive || 0) +
+    (sentimentBreakdown?.neutral || 0) +
+    (sentimentBreakdown?.negative || 0);
+
+  return (
+    <div className="min-h-screen bg-gray-950">
+      <link
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap"
+        rel="stylesheet"
+      />
+      {brandedHeader}
+
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        {/* Awaiting intake */}
+        {!audit && client?.status === "pending_intake" && (
+          <div className="text-center py-16">
+            <h2 className="text-xl font-bold text-white mb-2">
+              Audit Not Started
+            </h2>
+            <p className="text-gray-400">
+              The intake form hasn&apos;t been submitted yet.
+            </p>
+          </div>
+        )}
+
+        {/* In progress */}
+        {isRunning && (
+          <section className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
+            <h2
+              className="text-2xl font-bold text-white uppercase tracking-wider mb-4"
+              style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+            >
+              Analysing AI Visibility
+            </h2>
+            <p className="text-gray-400 mb-6">
+              Querying {audit!.engines?.length || 7} AI search engines for{" "}
+              <strong className="text-white">{client?.name}</strong>...
+            </p>
+
+            <div className="max-w-md mx-auto">
+              <div className="w-full bg-gray-800 rounded-full h-4 mb-3">
+                <div
+                  className="bg-orange-500 h-4 rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-sm text-gray-400">
+                <span>
+                  {audit!.progress_current} / {audit!.progress_total} queries
+                </span>
+                <span>{progressPercent}%</span>
+              </div>
+              {audit!.progress_message && (
+                <p className="mt-3 text-sm text-gray-500 font-mono">
+                  {audit!.progress_message}
+                </p>
+              )}
+              {audit!.progress_current > 0 && (
+                <p className="mt-2 text-xs text-gray-500">
+                  ~
+                  {Math.ceil(
+                    ((audit!.progress_total - audit!.progress_current) * 2) / 60
+                  )}{" "}
+                  min remaining
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Failed */}
+        {isFailed && (
+          <section className="bg-red-950 border border-red-900 rounded-xl p-8 text-center">
+            <h2 className="text-xl font-bold text-red-300 mb-2">
+              Audit Failed
+            </h2>
+            <p className="text-red-400 mb-6">
+              Something went wrong during the audit. Our team has been notified.
+            </p>
+            <a
+              href="https://balmeragency.com.au/contact"
+              className="inline-block px-8 py-3 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 transition-colors uppercase tracking-wider"
+            >
+              Contact Us to Re-Run
+            </a>
+          </section>
+        )}
+
+        {/* Completed */}
+        {isCompleted && (
+          <>
+            {/* Visibility Score Hero */}
+            <section className="bg-black border border-gray-800 rounded-xl p-10 text-center">
+              <p className="text-sm text-gray-400 uppercase tracking-wider mb-2">
+                Your AI Visibility Score
+              </p>
+              <div
+                className={`text-8xl font-bold ${visColors.text}`}
+                style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+              >
+                {Math.round(visRate)}%
+              </div>
+              <div className="w-16 h-1 bg-orange-500 mx-auto my-4" />
+              <p className="text-gray-400 text-lg">
+                <strong className="text-white">{client?.name}</strong> was
+                mentioned in{" "}
+                <strong className="text-orange-400">
+                  {audit!.total_mentioned}
+                </strong>{" "}
+                out of{" "}
+                <strong className="text-white">{audit!.total_queries}</strong>{" "}
+                AI engine queries across{" "}
+                <strong className="text-white">
+                  {audit!.engines?.length}
+                </strong>{" "}
+                platforms.
+              </p>
+              {visRate < 25 && (
+                <p className="mt-4 text-orange-400 text-sm">
+                  Your brand has significant room for improvement in AI search visibility.
+                  Scroll down to see how we can help.
+                </p>
+              )}
+            </section>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                {
+                  label: "Visibility Rate",
+                  value: `${Math.round(visRate)}%`,
+                  color: visColors.text,
+                },
+                {
+                  label: "Brand Mentions",
+                  value: audit!.total_mentioned,
+                  color: "text-orange-400",
+                },
+                {
+                  label: "Total Queries",
+                  value: audit!.total_queries,
+                  color: "text-white",
+                },
+                {
+                  label: "Engines Tested",
+                  value: audit!.engines?.length,
+                  color: "text-white",
+                },
+              ].map((kpi) => (
+                <div
+                  key={kpi.label}
+                  className="bg-black border border-gray-800 rounded-xl p-5 text-center"
+                >
+                  <div className={`text-3xl font-bold ${kpi.color}`}>
+                    {kpi.value}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1 uppercase tracking-wider">
+                    {kpi.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Performance by AI Engine */}
+            {sortedEngines.length > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-6"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Performance by AI Engine
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sortedEngines.map(([key, stats]) => {
+                    const rate = stats.visibility_rate;
+                    const colors = rateColor(rate);
+                    const gap = 100 - rate;
+                    const priority = priorityLabel(gap);
+                    return (
+                      <div
+                        key={key}
+                        className="bg-black border border-gray-800 rounded-lg p-4"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-white">
+                            {stats.display_name || ENGINE_LABELS[key] || key}
+                          </span>
+                          <span className={`text-lg font-bold ${colors.text}`}>
+                            {Math.round(rate)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-800 rounded-full h-2 mb-2">
+                          <div
+                            className={`h-2 rounded-full ${colors.bar}`}
+                            style={{ width: `${Math.max(rate, 2)}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-500">
+                            {stats.brand_mentioned} / {stats.total_queries} mentions
+                          </p>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${priority.cls}`}
+                          >
+                            {priority.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Engine Gap Analysis Table */}
+            {sortedEngines.length > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-4"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  AI Engine Gap Analysis
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-700 text-gray-400 uppercase text-xs">
+                        <th className="text-left py-3 px-2">AI Engine</th>
+                        <th className="text-center py-3 px-2">Queries</th>
+                        <th className="text-center py-3 px-2">Mentioned</th>
+                        <th className="text-center py-3 px-2">Mention Rate</th>
+                        <th className="text-center py-3 px-2">Missed</th>
+                        <th className="text-center py-3 px-2">Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedEngines.map(([key, stats]) => {
+                        const gap = 100 - stats.visibility_rate;
+                        const missed =
+                          stats.total_queries - stats.brand_mentioned;
+                        const priority = priorityLabel(gap);
+                        const colors = rateColor(stats.visibility_rate);
+                        return (
+                          <tr
+                            key={key}
+                            className="border-b border-gray-800 hover:bg-gray-800/50"
+                          >
+                            <td className="py-3 px-2 text-white font-medium">
+                              {stats.display_name || ENGINE_LABELS[key] || key}
+                            </td>
+                            <td className="py-3 px-2 text-center text-gray-400">
+                              {stats.total_queries}
+                            </td>
+                            <td className="py-3 px-2 text-center text-gray-400">
+                              {stats.brand_mentioned}
+                            </td>
+                            <td
+                              className={`py-3 px-2 text-center font-bold ${colors.text}`}
+                            >
+                              {Math.round(stats.visibility_rate)}%
+                            </td>
+                            <td className="py-3 px-2 text-center text-red-400">
+                              {missed}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <span
+                                className={`text-xs px-2 py-1 rounded-full font-bold ${priority.cls}`}
+                              >
+                                {priority.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {/* Category Performance */}
+            {sortedCategories.length > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-4"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Category Performance
+                </h2>
+                <div className="space-y-4">
+                  {sortedCategories.map(([category, stats]) => {
+                    const colors = rateColor(stats.visibility_rate);
+                    return (
+                      <div key={category}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm text-white font-medium">
+                            {category}
+                          </span>
+                          <span
+                            className={`text-sm font-bold ${colors.text}`}
+                          >
+                            {Math.round(stats.visibility_rate)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-800 rounded-full h-3">
+                          <div
+                            className={`h-3 rounded-full ${colors.bar}`}
+                            style={{
+                              width: `${Math.max(stats.visibility_rate, 2)}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {stats.brand_mentioned} / {stats.total_queries} queries
+                          mentioned
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Competitor Analysis */}
+            {sortedCompetitors.length > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-4"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Competitor Mentions
+                </h2>
+                <div className="space-y-3">
+                  {/* Client row first */}
+                  <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                    <span className="text-sm font-bold text-orange-400 w-40 truncate">
+                      {client?.name} (You)
+                    </span>
+                    <div className="flex-1">
+                      <div className="w-full bg-gray-800 rounded-full h-3">
+                        <div
+                          className="h-3 rounded-full bg-orange-500"
+                          style={{
+                            width: `${Math.max(
+                              ((audit!.total_mentioned || 0) /
+                                Math.max(audit!.total_queries || 1, 1)) *
+                                100,
+                              2
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-orange-400 w-16 text-right">
+                      {audit!.total_mentioned}
+                    </span>
+                  </div>
+                  {sortedCompetitors.map(([name, count]) => {
+                    const maxMentions = Math.max(
+                      audit!.total_queries || 1,
+                      count,
+                      1
+                    );
+                    return (
+                      <div
+                        key={name}
+                        className="flex items-center gap-3 bg-black border border-gray-800 rounded-lg p-3"
+                      >
+                        <span className="text-sm text-gray-300 w-40 truncate">
+                          {name}
+                        </span>
+                        <div className="flex-1">
+                          <div className="w-full bg-gray-800 rounded-full h-3">
+                            <div
+                              className="h-3 rounded-full bg-gray-500"
+                              style={{
+                                width: `${Math.max(
+                                  (count / maxMentions) * 100,
+                                  2
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <span className="text-sm text-gray-400 w-16 text-right">
+                          {count}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Sentiment Breakdown */}
+            {totalSentiment > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-4"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Sentiment Analysis
+                </h2>
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    {
+                      label: "Positive",
+                      value: sentimentBreakdown?.positive || 0,
+                      color: "text-green-400",
+                      bg: "bg-green-500",
+                    },
+                    {
+                      label: "Neutral",
+                      value: sentimentBreakdown?.neutral || 0,
+                      color: "text-gray-400",
+                      bg: "bg-gray-500",
+                    },
+                    {
+                      label: "Negative",
+                      value: sentimentBreakdown?.negative || 0,
+                      color: "text-red-400",
+                      bg: "bg-red-500",
+                    },
+                  ].map((s) => {
+                    const pct =
+                      totalSentiment > 0
+                        ? Math.round((s.value / totalSentiment) * 100)
+                        : 0;
+                    return (
+                      <div
+                        key={s.label}
+                        className="bg-black border border-gray-800 rounded-lg p-4 text-center"
+                      >
+                        <div className={`text-2xl font-bold ${s.color}`}>
+                          {pct}%
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 uppercase">
+                          {s.label}
+                        </div>
+                        <div className="w-full bg-gray-800 rounded-full h-1.5 mt-2">
+                          <div
+                            className={`h-1.5 rounded-full ${s.bg}`}
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Full Audit Dashboard (embedded) */}
+            {audit!.dashboard_url && (
+              <section>
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-4"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Full Audit Dashboard
+                </h2>
+                <div className="bg-white rounded-xl overflow-hidden">
+                  <iframe
+                    src={audit!.dashboard_url}
+                    className="w-full border-0"
+                    style={{ height: "900px" }}
+                    title="GEO Audit Dashboard"
+                  />
+                </div>
+              </section>
+            )}
+
+            {/* CTA: Improve Visibility */}
+            <section className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border-2 border-orange-500 rounded-xl p-10">
+              <div className="text-center mb-8">
+                <h2
+                  className="text-4xl font-bold text-white uppercase tracking-wider mb-4"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Improve Your AI Visibility
+                </h2>
+                <div className="w-16 h-1 bg-orange-500 mx-auto my-4" />
+                <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+                  Your brand&apos;s visibility in AI search engines directly
+                  impacts how customers find you. Our GEO (Generative Engine
+                  Optimization) services help you get mentioned when it matters
+                  most.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
+                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-white font-bold mb-2">GEO Strategy</h3>
+                  <p className="text-gray-400 text-sm">
+                    Custom optimisation plan to boost your visibility across ChatGPT, Claude, Gemini and more.
+                  </p>
+                </div>
+                <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
+                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-white font-bold mb-2">Monthly Monitoring</h3>
+                  <p className="text-gray-400 text-sm">
+                    Track your AI visibility over time with regular audits and performance reports.
+                  </p>
+                </div>
+                <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
+                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-white font-bold mb-2">Content Optimisation</h3>
+                  <p className="text-gray-400 text-sm">
+                    AI-optimised content that gets your brand recommended by AI search engines.
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center mb-6">
+                <h3
+                  className="text-2xl font-bold text-white uppercase tracking-wider mb-2"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Let&apos;s Get You Started with GEO
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  Free strategy consultation with our GEO specialists
+                </p>
+              </div>
+              <div className="max-w-2xl mx-auto bg-white rounded-lg overflow-hidden">
+                <iframe
+                  src="https://api.leadconnectorhq.com/widget/form/jrz5dYEsdZaP812UunKq"
+                  style={{ width: "100%", height: "600px", border: "none" }}
+                  title="GEO Campaign Audit form"
+                />
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-black border-t border-gray-800 py-6 mt-12">
+        <div className="max-w-6xl mx-auto px-4 text-center text-sm text-gray-500">
+          <p>
+            Powered by{" "}
+            <a
+              href="https://balmeragency.com.au"
+              className="text-orange-400 hover:underline"
+            >
+              Balmer Agency
+            </a>
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}
