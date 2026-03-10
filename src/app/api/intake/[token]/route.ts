@@ -11,8 +11,11 @@ const DEFAULT_ENGINES = [
   "google",
   "perplexity",
   "xai",
+  "deepseek",
+  "meta_llama",
   "google_ai_mode",
   "google_ai_overview",
+  "bing_copilot",
 ];
 
 export async function GET(

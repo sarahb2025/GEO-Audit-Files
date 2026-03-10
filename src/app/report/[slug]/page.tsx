@@ -44,6 +44,56 @@ interface CategoryStats {
   visibility_rate: number;
 }
 
+interface KeywordGap {
+  prompt_id: number;
+  prompt_text: string;
+  category: string;
+  engines_missed: string[];
+  engines_hit: string[];
+  engines_tested: number;
+  gap_severity: string;
+  competitors_present: { name: string; count: number }[];
+}
+
+interface DirectoryCitation {
+  directory: string;
+  listed: boolean;
+  link: string | null;
+  error: string | null;
+}
+
+interface SerpComparison {
+  prompt_id: number;
+  prompt_text: string;
+  ai_mentioned: boolean;
+  organic_rank: number | null;
+  in_top_10: boolean;
+  gap_type: string;
+}
+
+interface ContentRecommendation {
+  id: number;
+  type: string;
+  title: string;
+  target_query: string;
+  target_category: string;
+  priority_score: number;
+  severity: string;
+  rationale: string;
+  target_engines: string[];
+  competitors_to_beat: string[];
+  suggested_outline: string[];
+}
+
+interface DirectoryAction {
+  directory: string;
+  listed: boolean;
+  current_link: string | null;
+  action: string;
+  urgency: string;
+  recommendation: string;
+}
+
 interface SummaryJson {
   audit_metadata: {
     brand: string;
@@ -67,6 +117,26 @@ interface SummaryJson {
     neutral: number;
     negative: number;
   };
+  keyword_gap_analysis?: {
+    keyword_gaps: KeywordGap[];
+    strengths: { prompt_id: number; prompt_text: string; category: string; engines_hit: string[]; coverage_rate: number }[];
+    low_competition: { prompt_id: number; prompt_text: string; category: string; opportunity: string }[];
+    keyword_frequency: Record<string, number>;
+    competitor_advantages: { competitor: string; advantage_count: number; prompts_where_they_beat_us: string[] }[];
+  };
+  directory_citations?: DirectoryCitation[];
+  serp_analysis?: {
+    site_indexed: { indexed_count: number; top_pages: { title: string; link: string }[]; error: string | null };
+    organic_rankings: { prompt_id: number; prompt_text: string; organic_rank: number | null; in_top_10: boolean }[];
+    comparisons: SerpComparison[];
+    summary: { seo_strong_ai_weak: number; ai_strong_seo_weak: number; both_strong: number; both_weak: number; total_compared: number };
+  };
+  alice_brief?: {
+    content_recommendations: ContentRecommendation[];
+    directory_actions: DirectoryAction[];
+    keyword_opportunities: { prompt_text: string; organic_rank: number | null; gap_type: string; recommendation: string; priority: string }[];
+    summary_stats: { total_recommendations: number; critical_count: number; content_pieces_needed: number; directories_to_claim: number; directories_to_optimise: number };
+  };
 }
 
 const ENGINE_LABELS: Record<string, string> = {
@@ -75,8 +145,11 @@ const ENGINE_LABELS: Record<string, string> = {
   google: "Gemini",
   perplexity: "Perplexity",
   xai: "Grok",
+  deepseek: "DeepSeek",
+  meta_llama: "Llama",
   google_ai_mode: "Google AI Mode",
   google_ai_overview: "Google AI Overview",
+  bing_copilot: "Bing Copilot",
 };
 
 function rateColor(rate: number) {
@@ -257,6 +330,17 @@ export default function ReportPage() {
     (sentimentBreakdown?.positive || 0) +
     (sentimentBreakdown?.neutral || 0) +
     (sentimentBreakdown?.negative || 0);
+
+  // New analysis data
+  const keywordGaps = summary?.keyword_gap_analysis?.keyword_gaps || [];
+  const keywordStrengths = summary?.keyword_gap_analysis?.strengths || [];
+  const lowCompetition = summary?.keyword_gap_analysis?.low_competition || [];
+  const directoryCitations = summary?.directory_citations || [];
+  const serpAnalysis = summary?.serp_analysis;
+  const serpComparisons = serpAnalysis?.comparisons || [];
+  const aliceBrief = summary?.alice_brief;
+  const contentRecs = aliceBrief?.content_recommendations || [];
+  const directoryActions = aliceBrief?.directory_actions || [];
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -699,6 +783,328 @@ export default function ReportPage() {
                             style={{ width: `${Math.max(pct, 2)}%` }}
                           />
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Keyword Gap Analysis */}
+            {keywordGaps.length > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-2"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Keyword Gap Analysis
+                </h2>
+                <p className="text-sm text-gray-400 mb-6">
+                  Queries where competitors are being recommended but your brand is missing.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-700 text-gray-400 uppercase text-xs">
+                        <th className="text-left py-3 px-2">Query</th>
+                        <th className="text-center py-3 px-2">Category</th>
+                        <th className="text-center py-3 px-2">Engines Missed</th>
+                        <th className="text-center py-3 px-2">Competitors Present</th>
+                        <th className="text-center py-3 px-2">Severity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {keywordGaps.slice(0, 10).map((gap) => {
+                        const sevColors: Record<string, string> = {
+                          critical: "bg-red-600 text-white",
+                          high: "bg-orange-600 text-white",
+                          medium: "bg-yellow-600 text-black",
+                          low: "bg-green-600 text-white",
+                        };
+                        return (
+                          <tr key={gap.prompt_id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                            <td className="py-3 px-2 text-gray-300 max-w-xs truncate">{gap.prompt_text}</td>
+                            <td className="py-3 px-2 text-center text-gray-400">{gap.category}</td>
+                            <td className="py-3 px-2 text-center text-red-400 font-bold">
+                              {gap.engines_missed.length} / {gap.engines_tested}
+                            </td>
+                            <td className="py-3 px-2 text-center text-gray-400">
+                              {gap.competitors_present.slice(0, 2).map((c) => c.name).join(", ") || "—"}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <span className={`text-xs px-2 py-1 rounded-full font-bold ${sevColors[gap.gap_severity] || sevColors.medium}`}>
+                                {gap.gap_severity.charAt(0).toUpperCase() + gap.gap_severity.slice(1)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Strengths */}
+                {keywordStrengths.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-800">
+                    <h3 className="text-sm font-bold text-green-400 uppercase tracking-wider mb-3">
+                      Your Strengths ({keywordStrengths.length} queries with visibility)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {keywordStrengths.slice(0, 6).map((s) => (
+                        <div key={s.prompt_id} className="bg-black border border-gray-800 rounded-lg p-3 flex items-center justify-between">
+                          <span className="text-sm text-gray-300 truncate flex-1 mr-2">{s.prompt_text}</span>
+                          <span className="text-xs font-bold text-green-400 whitespace-nowrap">{s.coverage_rate}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Low Competition Opportunities */}
+                {lowCompetition.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-800">
+                    <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-3">
+                      Low-Competition Opportunities ({lowCompetition.length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {lowCompetition.slice(0, 4).map((opp) => (
+                        <div key={opp.prompt_id} className="bg-blue-950/30 border border-blue-900/50 rounded-lg p-3">
+                          <p className="text-sm text-blue-300 truncate">{opp.prompt_text}</p>
+                          <p className="text-xs text-blue-400/70 mt-1">{opp.opportunity}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Directory & Citation Check */}
+            {directoryCitations.length > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-2"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Directory &amp; Citation Check
+                </h2>
+                <p className="text-sm text-gray-400 mb-6">
+                  AI engines reference business directories when recommending brands. Being listed increases your visibility.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {directoryCitations.map((dir) => (
+                    <div
+                      key={dir.directory}
+                      className={`border rounded-lg p-4 flex items-center gap-3 ${
+                        dir.listed
+                          ? "bg-green-950/20 border-green-800/50"
+                          : "bg-red-950/20 border-red-800/50"
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+                        dir.listed ? "bg-green-900 text-green-400" : "bg-red-900 text-red-400"
+                      }`}>
+                        {dir.listed ? "✓" : "✗"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white">{dir.directory}</p>
+                        {dir.listed && dir.link ? (
+                          <a href={dir.link} target="_blank" rel="noopener noreferrer" className="text-xs text-green-400 hover:underline truncate block">
+                            Listed
+                          </a>
+                        ) : (
+                          <p className="text-xs text-red-400">Not found</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {directoryActions.length > 0 && (
+                  <div className="mt-4 p-4 bg-orange-950/20 border border-orange-800/50 rounded-lg">
+                    <p className="text-sm font-bold text-orange-400 mb-2">
+                      Action Required: {directoryActions.filter((d) => d.action === "claim").length} directories to claim
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Claiming these listings improves your chances of being cited by AI engines.
+                    </p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* AI vs SEO Visibility */}
+            {serpComparisons.length > 0 && serpAnalysis && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-2"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  AI vs SEO Visibility
+                </h2>
+                <p className="text-sm text-gray-400 mb-6">
+                  How your AI engine visibility compares to your traditional Google organic rankings.
+                </p>
+
+                {/* Summary cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                  {[
+                    { label: "SEO Strong, AI Weak", value: serpAnalysis.summary.seo_strong_ai_weak, color: "text-orange-400", desc: "Priority GEO targets" },
+                    { label: "AI Strong, SEO Weak", value: serpAnalysis.summary.ai_strong_seo_weak, color: "text-blue-400", desc: "AI advantage" },
+                    { label: "Both Strong", value: serpAnalysis.summary.both_strong, color: "text-green-400", desc: "Well positioned" },
+                    { label: "Both Weak", value: serpAnalysis.summary.both_weak, color: "text-red-400", desc: "Needs content" },
+                  ].map((stat) => (
+                    <div key={stat.label} className="bg-black border border-gray-800 rounded-lg p-4 text-center">
+                      <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+                      <div className="text-xs text-gray-500 mt-1 uppercase">{stat.label}</div>
+                      <div className="text-[10px] text-gray-600 mt-1">{stat.desc}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Comparison table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-700 text-gray-400 uppercase text-xs">
+                        <th className="text-left py-3 px-2">Query</th>
+                        <th className="text-center py-3 px-2">Google Rank</th>
+                        <th className="text-center py-3 px-2">AI Mentioned</th>
+                        <th className="text-center py-3 px-2">Gap Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {serpComparisons.slice(0, 10).map((comp) => {
+                        const gapColors: Record<string, string> = {
+                          seo_strong_ai_weak: "bg-orange-600 text-white",
+                          ai_strong_seo_weak: "bg-blue-600 text-white",
+                          both_strong: "bg-green-600 text-white",
+                          both_weak: "bg-red-600 text-white",
+                        };
+                        const gapLabels: Record<string, string> = {
+                          seo_strong_ai_weak: "SEO > AI",
+                          ai_strong_seo_weak: "AI > SEO",
+                          both_strong: "Strong",
+                          both_weak: "Weak",
+                        };
+                        return (
+                          <tr key={comp.prompt_id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                            <td className="py-3 px-2 text-gray-300 max-w-xs truncate">{comp.prompt_text}</td>
+                            <td className="py-3 px-2 text-center">
+                              {comp.organic_rank ? (
+                                <span className="text-green-400 font-bold">#{comp.organic_rank}</span>
+                              ) : (
+                                <span className="text-gray-600">Not ranked</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              {comp.ai_mentioned ? (
+                                <span className="text-green-400">Yes</span>
+                              ) : (
+                                <span className="text-red-400">No</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <span className={`text-xs px-2 py-1 rounded-full font-bold ${gapColors[comp.gap_type] || "bg-gray-600 text-white"}`}>
+                                {gapLabels[comp.gap_type] || comp.gap_type}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Site index info */}
+                {serpAnalysis.site_indexed && serpAnalysis.site_indexed.indexed_count > 0 && (
+                  <div className="mt-4 p-3 bg-black border border-gray-800 rounded-lg">
+                    <p className="text-sm text-gray-400">
+                      <span className="text-white font-bold">{serpAnalysis.site_indexed.indexed_count.toLocaleString()}</span> pages indexed on Google
+                    </p>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Content Recommendations (Alice Brief) */}
+            {contentRecs.length > 0 && (
+              <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h2
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-2"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  Content Recommendations
+                </h2>
+                <p className="text-sm text-gray-400 mb-6">
+                  AI-generated action plan to improve your visibility across AI search engines.
+                </p>
+
+                {/* Summary stats */}
+                {aliceBrief?.summary_stats && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-black border border-gray-800 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-white">{aliceBrief.summary_stats.total_recommendations}</div>
+                      <div className="text-xs text-gray-500 mt-1 uppercase">Total Recommendations</div>
+                    </div>
+                    <div className="bg-black border border-gray-800 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-red-400">{aliceBrief.summary_stats.critical_count}</div>
+                      <div className="text-xs text-gray-500 mt-1 uppercase">Critical Priority</div>
+                    </div>
+                    <div className="bg-black border border-gray-800 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-orange-400">{aliceBrief.summary_stats.directories_to_claim}</div>
+                      <div className="text-xs text-gray-500 mt-1 uppercase">Directories to Claim</div>
+                    </div>
+                    <div className="bg-black border border-gray-800 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-400">{aliceBrief.summary_stats.content_pieces_needed}</div>
+                      <div className="text-xs text-gray-500 mt-1 uppercase">Content Pieces Needed</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendation cards */}
+                <div className="space-y-3">
+                  {contentRecs.slice(0, 8).map((rec) => {
+                    const typeColors: Record<string, string> = {
+                      landing_page: "bg-purple-900 text-purple-300",
+                      comparison_article: "bg-blue-900 text-blue-300",
+                      blog_post: "bg-green-900 text-green-300",
+                      faq_page: "bg-yellow-900 text-yellow-300",
+                      case_study: "bg-pink-900 text-pink-300",
+                      directory_listing: "bg-orange-900 text-orange-300",
+                    };
+                    const sevBorder: Record<string, string> = {
+                      critical: "border-l-red-500",
+                      high: "border-l-orange-500",
+                      medium: "border-l-yellow-500",
+                      low: "border-l-green-500",
+                      opportunity: "border-l-blue-500",
+                    };
+                    return (
+                      <div
+                        key={rec.id}
+                        className={`bg-black border border-gray-800 border-l-4 ${sevBorder[rec.severity] || "border-l-gray-500"} rounded-lg p-4`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h4 className="text-sm font-bold text-white flex-1">{rec.title}</h4>
+                          <div className="flex gap-1.5 shrink-0">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${typeColors[rec.type] || "bg-gray-800 text-gray-300"}`}>
+                              {rec.type.replace(/_/g, " ")}
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                              rec.severity === "critical" ? "bg-red-600 text-white" :
+                              rec.severity === "high" ? "bg-orange-600 text-white" :
+                              "bg-gray-700 text-gray-300"
+                            }`}>
+                              {rec.severity}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-2">{rec.rationale}</p>
+                        {rec.competitors_to_beat.length > 0 && (
+                          <p className="text-xs text-orange-400">
+                            Competitors to beat: {rec.competitors_to_beat.join(", ")}
+                          </p>
+                        )}
                       </div>
                     );
                   })}

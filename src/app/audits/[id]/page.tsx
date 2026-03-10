@@ -35,6 +35,7 @@ const ENGINE_LABELS: Record<string, string> = {
   meta_llama: "Llama",
   google_ai_mode: "AI Mode",
   google_ai_overview: "AI Overview",
+  bing_copilot: "Bing Copilot",
 };
 
 export default function AuditDetailPage() {
