@@ -1112,26 +1112,6 @@ export default function ReportPage() {
               </section>
             )}
 
-            {/* Full Audit Dashboard (embedded) */}
-            {audit!.dashboard_url && (
-              <section>
-                <h2
-                  className="text-xl font-bold text-white uppercase tracking-wider mb-4"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
-                >
-                  Full Audit Dashboard
-                </h2>
-                <div className="bg-white rounded-xl overflow-hidden">
-                  <iframe
-                    src={audit!.dashboard_url}
-                    className="w-full border-0"
-                    style={{ height: "900px" }}
-                    title="GEO Audit Dashboard"
-                  />
-                </div>
-              </section>
-            )}
-
             {/* CTA: Improve Visibility */}
             <section className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border-2 border-orange-500 rounded-xl p-10">
               <div className="text-center mb-8">
