@@ -420,18 +420,18 @@ export default function IntakePage() {
             />
           </section>
 
-          {/* Keywords */}
-          <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+          {/* What do you want to be found for */}
+          <section className="bg-gray-900 border-2 border-orange-500 rounded-xl p-6 space-y-4">
             <h3
               className="text-lg font-bold text-white uppercase tracking-wider border-b border-gray-800 pb-3"
               style={{ fontFamily: "'Bebas Neue', sans-serif" }}
             >
-              Target Keywords
+              What Do You Want To Be Found For?
             </h3>
             <TagInput
-              label="Keywords You Want to Rank For"
-              description="What search queries should AI engines recommend you for?"
-              placeholder="e.g. best IT support Sydney"
+              label="Search Queries"
+              description="Type the exact questions or phrases you want AI engines like ChatGPT, Claude, and Gemini to recommend you for."
+              placeholder="e.g. best digital marketing agency in Sydney"
               input={keywordInput}
               setInput={setKeywordInput}
               items={keywords}

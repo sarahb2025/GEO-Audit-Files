@@ -1125,7 +1125,7 @@ export default function ReportPage() {
                 <p className="text-gray-400 text-lg max-w-2xl mx-auto">
                   Your brand&apos;s visibility in AI search engines directly
                   impacts how customers find you. Our GEO (Generative Engine
-                  Optimization) services help you get mentioned when it matters
+                  Optimisation) services help you get mentioned when it matters
                   most.
                 </p>
               </div>
@@ -1167,23 +1167,18 @@ export default function ReportPage() {
                 </div>
               </div>
 
-              <div className="text-center mb-6">
-                <h3
-                  className="text-2xl font-bold text-white uppercase tracking-wider mb-2"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+              <div className="text-center">
+                <a
+                  href="https://balmeragency.com.au/contact"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block px-10 py-4 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 transition-colors text-lg uppercase tracking-wider"
                 >
-                  Let&apos;s Get You Started with GEO
-                </h3>
-                <p className="text-gray-400 text-sm">
-                  Free strategy consultation with our GEO specialists
+                  Get a Free GEO Strategy Session
+                </a>
+                <p className="text-gray-500 text-sm mt-3">
+                  Speak with our GEO specialists about improving your AI visibility
                 </p>
-              </div>
-              <div className="max-w-2xl mx-auto bg-white rounded-lg overflow-hidden">
-                <iframe
-                  src="https://api.leadconnectorhq.com/widget/form/jrz5dYEsdZaP812UunKq"
-                  style={{ width: "100%", height: "600px", border: "none" }}
-                  title="GEO Campaign Audit form"
-                />
               </div>
             </section>
           </>
