@@ -4,57 +4,102 @@ interface GeneratedPrompt {
   prompt_text: string;
 }
 
-const MAX_PROMPTS = 20;
+const MAX_PROMPTS = 30;
 
-const SERVICE_TEMPLATES = [
-  "What are the best {service} providers in {location}?",
-  "Who are the top {service} companies?",
-  "Can you recommend {service} services for small businesses?",
-  "{service} providers comparison {location}",
-  "Best {service} companies near me",
-  "Who are the leading {service} companies in {location}?",
+const QUESTION_WORDS = [
+  "what",
+  "who",
+  "where",
+  "which",
+  "how",
+  "can",
+  "do",
+  "does",
+  "is",
+  "are",
+  "should",
+  "why",
+  "compare",
+  "recommend",
 ];
 
-const KEYWORD_TEMPLATES = [
-  "{keyword}",
-  "Best {keyword} in {location}",
-  "Top companies for {keyword}",
-];
+function startsWithQuestionWord(text: string): boolean {
+  const lower = text.toLowerCase();
+  return QUESTION_WORDS.some((w) => lower.startsWith(w + " "));
+}
 
-export function generatePrompts(
-  services: string[],
-  location: string = "",
-  keywords: string[] = []
-): GeneratedPrompt[] {
+/**
+ * Generate prompts from user-entered queries.
+ * Each query is used verbatim as a prompt. If the query isn't already
+ * a question, 1-2 variations are generated.
+ */
+export function generatePrompts(queries: string[]): GeneratedPrompt[] {
   const prompts: GeneratedPrompt[] = [];
   let promptId = 1;
-  const loc = location || "my area";
 
-  for (const service of services) {
-    for (const template of SERVICE_TEMPLATES) {
-      prompts.push({
-        prompt_id: promptId++,
-        category: service,
-        prompt_text: template
-          .replace(/\{service\}/g, service)
-          .replace(/\{location\}/g, loc),
-      });
-    }
-  }
-
-  for (const keyword of keywords) {
+  for (const query of queries) {
     if (prompts.length >= MAX_PROMPTS) break;
-    for (const template of KEYWORD_TEMPLATES) {
-      if (prompts.length >= MAX_PROMPTS) break;
-      prompts.push({
-        prompt_id: promptId++,
-        category: "Target Keywords",
-        prompt_text: template
-          .replace(/\{keyword\}/g, keyword)
-          .replace(/\{location\}/g, loc),
-      });
+    const trimmed = query.trim();
+    if (!trimmed) continue;
+
+    // Always include the user's exact query verbatim
+    prompts.push({
+      prompt_id: promptId++,
+      category: trimmed,
+      prompt_text: trimmed,
+    });
+
+    // Add variations only if it's not already a question
+    if (!startsWithQuestionWord(trimmed)) {
+      if (prompts.length < MAX_PROMPTS) {
+        prompts.push({
+          prompt_id: promptId++,
+          category: trimmed,
+          prompt_text: `Can you recommend ${trimmed.toLowerCase()}?`,
+        });
+      }
+      if (prompts.length < MAX_PROMPTS) {
+        prompts.push({
+          prompt_id: promptId++,
+          category: trimmed,
+          prompt_text: `What are the best ${trimmed.toLowerCase()}?`,
+        });
+      }
     }
   }
 
   return prompts.slice(0, MAX_PROMPTS);
+}
+
+/**
+ * Generate prompts from new queries to append to an existing audit.
+ * Prompt IDs start from startId to avoid collisions.
+ */
+export function generateAdditionalPrompts(
+  queries: string[],
+  startId: number
+): GeneratedPrompt[] {
+  const prompts: GeneratedPrompt[] = [];
+  let promptId = startId;
+
+  for (const query of queries) {
+    const trimmed = query.trim();
+    if (!trimmed) continue;
+
+    prompts.push({
+      prompt_id: promptId++,
+      category: trimmed,
+      prompt_text: trimmed,
+    });
+
+    if (!startsWithQuestionWord(trimmed)) {
+      prompts.push({
+        prompt_id: promptId++,
+        category: trimmed,
+        prompt_text: `Can you recommend ${trimmed.toLowerCase()}?`,
+      });
+    }
+  }
+
+  return prompts;
 }

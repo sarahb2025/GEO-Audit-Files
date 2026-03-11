@@ -172,6 +172,11 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  // Add more queries state
+  const [additionalQueries, setAdditionalQueries] = useState<string[]>([""]);
+  const [addingQueries, setAddingQueries] = useState(false);
+  const [addQueryError, setAddQueryError] = useState("");
+
   const fetchReport = useCallback(async () => {
     try {
       const res = await fetch(`/api/report/${slug}`);
@@ -193,6 +198,36 @@ export default function ReportPage() {
   useEffect(() => {
     fetchReport();
   }, [fetchReport]);
+
+  async function handleAddQueries() {
+    const validQueries = additionalQueries.filter((q) => q.trim());
+    if (validQueries.length === 0) return;
+
+    setAddingQueries(true);
+    setAddQueryError("");
+
+    try {
+      const res = await fetch(`/api/report/${slug}/add-queries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queries: validQueries }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAddQueryError(data.error || "Failed to add queries.");
+        setAddingQueries(false);
+        return;
+      }
+
+      setAdditionalQueries([""]);
+      setAddingQueries(false);
+      fetchReport();
+    } catch {
+      setAddQueryError("Network error. Please try again.");
+      setAddingQueries(false);
+    }
+  }
 
   // Realtime subscription for in-progress audits
   useEffect(() => {
@@ -1112,73 +1147,203 @@ export default function ReportPage() {
               </section>
             )}
 
-            {/* CTA: Improve Visibility */}
-            <section className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border-2 border-orange-500 rounded-xl p-10">
-              <div className="text-center mb-8">
+            {/* Test More Queries */}
+            {audit!.status === "completed" && (
+              <section className="bg-gray-900 border-2 border-dashed border-orange-500/50 rounded-xl p-6">
                 <h2
-                  className="text-4xl font-bold text-white uppercase tracking-wider mb-4"
+                  className="text-xl font-bold text-white uppercase tracking-wider mb-2"
                   style={{ fontFamily: "'Bebas Neue', sans-serif" }}
                 >
-                  Improve Your AI Visibility
+                  Test More Queries
+                </h2>
+                <p className="text-sm text-gray-400 mb-4">
+                  Want to check more queries? Add them below and we&apos;ll run
+                  them against the same AI engines.
+                </p>
+                <div className="space-y-2 mb-4">
+                  {additionalQueries.map((q, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={q}
+                        onChange={(e) => {
+                          const updated = [...additionalQueries];
+                          updated[idx] = e.target.value;
+                          setAdditionalQueries(updated);
+                        }}
+                        placeholder="e.g. best digital marketing agency in Sydney"
+                        className="flex-1 px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500"
+                      />
+                      {additionalQueries.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAdditionalQueries(
+                              additionalQueries.filter((_, i) => i !== idx)
+                            )
+                          }
+                          className="px-3 text-red-400 hover:text-red-300 text-sm"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAdditionalQueries([...additionalQueries, ""])
+                    }
+                    className="text-sm text-orange-400 hover:text-orange-300 underline"
+                  >
+                    + Add another query
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      addingQueries ||
+                      additionalQueries.filter((q) => q.trim()).length === 0
+                    }
+                    onClick={handleAddQueries}
+                    className="px-6 py-3 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 disabled:opacity-50 transition-colors uppercase tracking-wider text-sm"
+                  >
+                    {addingQueries ? "Adding..." : "Run These Queries"}
+                  </button>
+                </div>
+                {addQueryError && (
+                  <p className="mt-3 text-red-400 text-sm">{addQueryError}</p>
+                )}
+              </section>
+            )}
+
+            {/* CTA: Agent Alice */}
+            <section className="bg-gradient-to-br from-gray-900 via-black to-gray-900 border-2 border-orange-500 rounded-xl overflow-hidden">
+              <div className="p-10 text-center border-b border-orange-500/30">
+                <p className="text-orange-400 text-sm uppercase tracking-widest font-bold mb-3">
+                  Part 1 Complete
+                </p>
+                <h2
+                  className="text-4xl md:text-5xl font-bold text-white uppercase tracking-wider mb-4"
+                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+                >
+                  There&apos;s a Part 2 to This Report
                 </h2>
                 <div className="w-16 h-1 bg-orange-500 mx-auto my-4" />
                 <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-                  Your brand&apos;s visibility in AI search engines directly
-                  impacts how customers find you. Our GEO (Generative Engine
-                  Optimisation) services help you get mentioned when it matters
-                  most.
+                  You&apos;ve seen where you stand. Now discover exactly{" "}
+                  <strong className="text-white">
+                    what you need to rank for
+                  </strong>{" "}
+                  in order to succeed in AI search.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
-                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
+              <div className="p-10">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                  <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
+                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg
+                        className="w-6 h-6 text-black"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-white font-bold mb-2">
+                      Your AI Ranking Plan
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      A detailed, query-by-query strategy for getting your brand
+                      recommended by every AI engine.
+                    </p>
                   </div>
-                  <h3 className="text-white font-bold mb-2">GEO Strategy</h3>
-                  <p className="text-gray-400 text-sm">
-                    Custom optimisation plan to boost your visibility across ChatGPT, Claude, Gemini and more.
-                  </p>
-                </div>
-                <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
-                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                  <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
+                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg
+                        className="w-6 h-6 text-black"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-white font-bold mb-2">
+                      On-Brand Content
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      Not AI slop. On-brand content specifically designed to rank
+                      in AI search results.
+                    </p>
                   </div>
-                  <h3 className="text-white font-bold mb-2">Monthly Monitoring</h3>
-                  <p className="text-gray-400 text-sm">
-                    Track your AI visibility over time with regular audits and performance reports.
-                  </p>
-                </div>
-                <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
-                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                  <div className="bg-black/60 border border-gray-800 rounded-xl p-6 text-center">
+                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg
+                        className="w-6 h-6 text-black"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-white font-bold mb-2">
+                      Automated Execution
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      Our AI agents implement the plan for you. Activate it, and
+                      watch your visibility climb.
+                    </p>
                   </div>
-                  <h3 className="text-white font-bold mb-2">Content Optimisation</h3>
-                  <p className="text-gray-400 text-sm">
-                    AI-optimised content that gets your brand recommended by AI search engines.
-                  </p>
                 </div>
-              </div>
 
-              <div className="text-center">
-                <a
-                  href="https://balmeragency.com.au/contact"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block px-10 py-4 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 transition-colors text-lg uppercase tracking-wider"
-                >
-                  Get a Free GEO Strategy Session
-                </a>
-                <p className="text-gray-500 text-sm mt-3">
-                  Speak with our GEO specialists about improving your AI visibility
-                </p>
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-8 text-center mb-8">
+                  <p className="text-lg text-white mb-2">
+                    We&apos;ve built{" "}
+                    <strong className="text-orange-400">Agent Alice</strong> to
+                    do exactly this.
+                  </p>
+                  <p className="text-gray-400">
+                    She analyses your gaps, creates the content plan, and writes
+                    on-brand content that gets you mentioned by AI search
+                    engines. Not generic AI slop &mdash; content designed to
+                    rank.
+                  </p>
+                </div>
+
+                <div className="text-center">
+                  <a
+                    href="https://balmeragency.com.au/contact"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block px-10 py-4 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 transition-colors text-lg uppercase tracking-wider"
+                  >
+                    Activate the Plan
+                  </a>
+                  <p className="text-gray-500 text-sm mt-3">
+                    Talk to us about Part 2 &mdash; your AI visibility action
+                    plan
+                  </p>
+                </div>
               </div>
             </section>
           </>

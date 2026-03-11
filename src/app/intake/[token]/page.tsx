@@ -18,17 +18,10 @@ export default function IntakePage() {
   const [reportSlug, setReportSlug] = useState("");
 
   // Form fields
-  const [contactName, setContactName] = useState("");
-  const [email, setEmail] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [competitorInput, setCompetitorInput] = useState("");
-  const [competitors, setCompetitors] = useState<string[]>([]);
-  const [serviceInput, setServiceInput] = useState("");
-  const [services, setServices] = useState<string[]>([]);
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [competitors, setCompetitors] = useState<string[]>([""]);
   const [keywordInput, setKeywordInput] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
-  const [location, setLocation] = useState("");
-  const [industry, setIndustry] = useState("");
 
   useEffect(() => {
     async function loadClient() {
@@ -45,6 +38,7 @@ export default function IntakePage() {
           return;
         }
         setClient(data.client);
+        setWebsiteUrl(data.client.url || "");
         setPageState("form");
       } catch {
         setErrorMsg("Could not load form. Please try again.");
@@ -54,31 +48,18 @@ export default function IntakePage() {
     loadClient();
   }, [token]);
 
-  function addItem(
-    input: string,
-    setInput: (v: string) => void,
-    list: string[],
-    setList: (v: string[]) => void
-  ) {
-    const item = input.trim();
-    if (item && !list.includes(item)) {
-      setList([...list, item]);
-      setInput("");
+  function addKeyword() {
+    const item = keywordInput.trim();
+    if (item && !keywords.includes(item)) {
+      setKeywords([...keywords, item]);
+      setKeywordInput("");
     }
-  }
-
-  function removeItem(
-    item: string,
-    list: string[],
-    setList: (v: string[]) => void
-  ) {
-    setList(list.filter((i) => i !== item));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (services.length === 0) {
-      setErrorMsg("Please add at least one service.");
+    if (keywords.length === 0) {
+      setErrorMsg("Please add at least one query.");
       return;
     }
     setPageState("submitting");
@@ -89,14 +70,9 @@ export default function IntakePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contact_name: contactName,
-          email,
-          contact_phone: contactPhone,
-          competitors,
-          services,
+          website_url: websiteUrl,
+          competitors: competitors.filter((c) => c.trim()),
           keywords,
-          location,
-          industry,
         }),
       });
       const data = await res.json();
@@ -111,77 +87,6 @@ export default function IntakePage() {
       setErrorMsg("Network error. Please try again.");
       setPageState("form");
     }
-  }
-
-  // Tag input component
-  function TagInput({
-    label,
-    description,
-    placeholder,
-    input,
-    setInput,
-    items,
-    setItems,
-    required,
-  }: {
-    label: string;
-    description?: string;
-    placeholder: string;
-    input: string;
-    setInput: (v: string) => void;
-    items: string[];
-    setItems: (v: string[]) => void;
-    required?: boolean;
-  }) {
-    return (
-      <div>
-        <label className="block text-sm font-bold text-white uppercase tracking-wider mb-1">
-          {label} {required && <span className="text-orange-400">*</span>}
-        </label>
-        {description && (
-          <p className="text-sm text-gray-400 mb-2">{description}</p>
-        )}
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addItem(input, setInput, items, setItems);
-              }
-            }}
-            placeholder={placeholder}
-            className="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-          />
-          <button
-            type="button"
-            onClick={() => addItem(input, setInput, items, setItems)}
-            className="px-4 py-3 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 transition-colors"
-          >
-            +
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {items.map((item) => (
-            <span
-              key={item}
-              className="inline-flex items-center gap-1 px-3 py-1 bg-gray-800 text-orange-400 border border-gray-700 rounded-full text-sm"
-            >
-              {item}
-              <button
-                type="button"
-                onClick={() => removeItem(item, items, setItems)}
-                className="text-gray-500 hover:text-red-400 ml-1"
-              >
-                x
-              </button>
-            </span>
-          ))}
-        </div>
-      </div>
-    );
   }
 
   // Branded header
@@ -266,8 +171,9 @@ export default function IntakePage() {
               Audit Started
             </h2>
             <p className="text-gray-400 mb-6">
-              We&apos;re analysing <strong className="text-white">{client?.name}</strong>&apos;s
-              visibility across 7 AI search engines. This typically takes 5-10
+              We&apos;re analysing{" "}
+              <strong className="text-white">{client?.name}</strong>&apos;s
+              visibility across 8 AI search engines. This typically takes 3-5
               minutes.
             </p>
             <a
@@ -300,124 +206,33 @@ export default function IntakePage() {
             {client?.name}
           </h2>
           <p className="text-gray-400 mt-2">
-            Complete the details below to start your AI visibility audit.
+            Tell us what you want to be found for and we&apos;ll check your
+            visibility across every major AI search engine.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Contact Details */}
+          {/* Your Website */}
           <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
             <h3
               className="text-lg font-bold text-white uppercase tracking-wider border-b border-gray-800 pb-3"
               style={{ fontFamily: "'Bebas Neue', sans-serif" }}
             >
-              Contact Details
+              Your Website
             </h3>
             <div>
               <label className="block text-sm font-bold text-white uppercase tracking-wider mb-1">
-                Your Name <span className="text-orange-400">*</span>
+                URL <span className="text-orange-400">*</span>
               </label>
               <input
                 type="text"
-                value={contactName}
-                onChange={(e) => setContactName(e.target.value)}
-                placeholder="Full name"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                placeholder="yourcompany.com"
                 className="w-full px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                 required
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-white uppercase tracking-wider mb-1">
-                  Email <span className="text-orange-400">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="w-full px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-white uppercase tracking-wider mb-1">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value)}
-                  placeholder="+61 400 000 000"
-                  className="w-full px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Services */}
-          <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
-            <h3
-              className="text-lg font-bold text-white uppercase tracking-wider border-b border-gray-800 pb-3"
-              style={{ fontFamily: "'Bebas Neue', sans-serif" }}
-            >
-              Your Business
-            </h3>
-            <TagInput
-              label="Main Services / Products"
-              description="What does your company offer? We'll check if AI engines mention you for these."
-              placeholder="e.g. managed IT services"
-              input={serviceInput}
-              setInput={setServiceInput}
-              items={services}
-              setItems={setServices}
-              required
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-white uppercase tracking-wider mb-1">
-                  Industry
-                </label>
-                <input
-                  type="text"
-                  value={industry}
-                  onChange={(e) => setIndustry(e.target.value)}
-                  placeholder="e.g. Information Technology"
-                  className="w-full px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-white uppercase tracking-wider mb-1">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g. Sydney, Australia"
-                  className="w-full px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Competitors */}
-          <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
-            <h3
-              className="text-lg font-bold text-white uppercase tracking-wider border-b border-gray-800 pb-3"
-              style={{ fontFamily: "'Bebas Neue', sans-serif" }}
-            >
-              Competitors
-            </h3>
-            <TagInput
-              label="Top Competitors"
-              description="Who are your main competitors? We'll compare your AI visibility against theirs."
-              placeholder="e.g. Acme Corp"
-              input={competitorInput}
-              setInput={setCompetitorInput}
-              items={competitors}
-              setItems={setCompetitors}
-            />
           </section>
 
           {/* What do you want to be found for */}
@@ -428,26 +243,66 @@ export default function IntakePage() {
             >
               What Do You Want To Be Found For?
             </h3>
-            <TagInput
-              label="Search Queries"
-              description="Type the exact questions or phrases you want AI engines like ChatGPT, Claude, and Gemini to recommend you for."
-              placeholder="e.g. best digital marketing agency in Sydney"
-              input={keywordInput}
-              setInput={setKeywordInput}
-              items={keywords}
-              setItems={setKeywords}
-            />
-            {client?.url && (
+            <div>
+              <p className="text-sm text-gray-400 mb-3">
+                Type the exact questions or phrases you want AI engines like
+                ChatGPT, Claude, and Gemini to recommend you for.
+              </p>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addKeyword();
+                    }
+                  }}
+                  placeholder="e.g. best digital marketing agency in Sydney"
+                  className="flex-1 px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+                <button
+                  type="button"
+                  onClick={addKeyword}
+                  className="px-4 py-3 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 transition-colors"
+                >
+                  +
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {keywords.map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-gray-800 text-orange-400 border border-gray-700 rounded-full text-sm"
+                  >
+                    {item}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setKeywords(keywords.filter((k) => k !== item))
+                      }
+                      className="text-gray-500 hover:text-red-400 ml-1"
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+            {websiteUrl && (
               <button
                 type="button"
                 onClick={async () => {
                   try {
                     const res = await fetch(
-                      `/api/extract-keywords?url=${encodeURIComponent(client.url)}`
+                      `/api/extract-keywords?url=${encodeURIComponent(websiteUrl)}`
                     );
                     const data = await res.json();
                     if (data.keywords?.length) {
-                      setKeywords((prev) => [...new Set([...prev, ...data.keywords])]);
+                      setKeywords((prev) => [
+                        ...new Set([...prev, ...data.keywords]),
+                      ]);
                     }
                   } catch {
                     /* ignore */
@@ -455,9 +310,60 @@ export default function IntakePage() {
                 }}
                 className="text-sm text-orange-400 hover:text-orange-300 underline"
               >
-                Auto-extract keywords from website
+                Auto-suggest queries from your website
               </button>
             )}
+          </section>
+
+          {/* Competitors */}
+          <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+            <h3
+              className="text-lg font-bold text-white uppercase tracking-wider border-b border-gray-800 pb-3"
+              style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+            >
+              Competitors
+            </h3>
+            <p className="text-sm text-gray-400">
+              Who are your main competitors? We&apos;ll compare your AI
+              visibility against theirs.
+            </p>
+            <div className="space-y-2">
+              {competitors.map((comp, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={comp}
+                    onChange={(e) => {
+                      const updated = [...competitors];
+                      updated[idx] = e.target.value;
+                      setCompetitors(updated);
+                    }}
+                    placeholder={`Competitor ${idx + 1}`}
+                    className="flex-1 px-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                  {competitors.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCompetitors(
+                          competitors.filter((_, i) => i !== idx)
+                        )
+                      }
+                      className="px-3 py-3 text-red-400 hover:text-red-300 text-sm"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCompetitors([...competitors, ""])}
+              className="text-sm text-orange-400 hover:text-orange-300 underline"
+            >
+              + Add competitor
+            </button>
           </section>
 
           {errorMsg && (
@@ -470,9 +376,8 @@ export default function IntakePage() {
             type="submit"
             disabled={
               pageState === "submitting" ||
-              !contactName ||
-              !email ||
-              services.length === 0
+              !websiteUrl ||
+              keywords.length === 0
             }
             className="w-full px-8 py-4 bg-orange-500 text-black font-bold rounded-lg hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg uppercase tracking-wider"
           >
@@ -483,7 +388,7 @@ export default function IntakePage() {
 
           <p className="text-xs text-gray-500 text-center">
             Your audit will analyse visibility across ChatGPT, Claude, Gemini,
-            Perplexity, Grok, and Google AI.
+            Perplexity, Grok, Google AI, and Bing Copilot.
           </p>
         </form>
       </main>
@@ -492,7 +397,10 @@ export default function IntakePage() {
         <div className="max-w-2xl mx-auto px-4 text-center text-sm text-gray-500">
           <p>
             Powered by{" "}
-            <a href="https://aieconomy.ai" className="text-orange-400 hover:underline">
+            <a
+              href="https://aieconomy.ai"
+              className="text-orange-400 hover:underline"
+            >
               AI Economy
             </a>{" "}
             &middot; Balmer Agency

@@ -54,11 +54,11 @@ export async function POST(
 ) {
   const { token } = await params;
   const body = await req.json();
-  const { competitors, services, email, location, industry, contact_name, contact_phone, keywords } = body;
+  const { competitors, keywords, website_url } = body;
 
-  if (!services?.length || !contact_name || !email) {
+  if (!keywords?.length) {
     return NextResponse.json(
-      { error: "Name, email, and at least one service are required." },
+      { error: "At least one query is required." },
       { status: 400 }
     );
   }
@@ -83,8 +83,9 @@ export async function POST(
     );
   }
 
-  // Auto-generate prompts from services + keywords
-  const generatedPrompts = generatePrompts(services, location || "", keywords || []);
+  // Generate prompts from user queries
+  const brandUrl = website_url || client.url;
+  const generatedPrompts = generatePrompts(keywords);
   const engines = DEFAULT_ENGINES;
 
   // Create audit row (on behalf of the agency user)
@@ -93,7 +94,7 @@ export async function POST(
     .insert({
       created_by: client.created_by,
       brand_name: client.name,
-      brand_url: client.url,
+      brand_url: brandUrl,
       competitors: competitors || [],
       engines,
       status: "pending",
@@ -123,14 +124,9 @@ export async function POST(
   await admin
     .from("geo_clients")
     .update({
-      email,
-      contact_name: contact_name || null,
-      contact_phone: contact_phone || null,
+      url: brandUrl,
       competitors: competitors || [],
-      services,
-      keywords: keywords || [],
-      location: location || null,
-      industry: industry || null,
+      keywords,
       audit_id: audit.id,
       status: "auditing",
       intake_completed_at: new Date().toISOString(),
