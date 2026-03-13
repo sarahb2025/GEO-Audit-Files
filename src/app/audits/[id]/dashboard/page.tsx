@@ -7,6 +7,7 @@ export default function DashboardPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [dashboardUrl, setDashboardUrl] = useState<string | null>(null);
+  const [dashboardHtml, setDashboardHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,12 +16,23 @@ export default function DashboardPage() {
       const data = await res.json();
       if (data.audit?.dashboard_url) {
         setDashboardUrl(data.audit.dashboard_url);
+
+        // Fetch the actual HTML content so we can use srcdoc
+        // (Supabase Storage may serve HTML with wrong Content-Type,
+        //  causing the browser to show raw source instead of rendering it)
+        try {
+          const htmlRes = await fetch(data.audit.dashboard_url);
+          const html = await htmlRes.text();
+          setDashboardHtml(html);
+        } catch (err) {
+          console.error("Failed to fetch dashboard HTML:", err);
+        }
       }
       setLoading(false);
     }
     load();
   }, [id]);
-
+ console.log("dashboard URL", dashboardUrl)
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -57,13 +69,23 @@ export default function DashboardPage() {
         </a>
       </div>
 
-      {/* Dashboard iframe */}
-      <iframe
-        src={dashboardUrl}
-        className="w-full border-0"
-        style={{ height: "calc(100vh - 48px)" }}
-        title="GEO Audit Dashboard"
-      />
+      {/* Dashboard iframe — use srcdoc to bypass Supabase Content-Type issues */}
+      {dashboardHtml ? (
+        <iframe
+          srcDoc={dashboardHtml}
+          className="w-full border-0"
+          style={{ height: "calc(100vh - 48px)" }}
+          title="GEO Audit Dashboard"
+          sandbox="allow-scripts allow-same-origin"
+        />
+      ) : (
+        <iframe
+          src={dashboardUrl}
+          className="w-full border-0"
+          style={{ height: "calc(100vh - 48px)" }}
+          title="GEO Audit Dashboard"
+        />
+      )}
     </div>
   );
 }
