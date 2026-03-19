@@ -37,44 +37,63 @@ export async function GET() {
 // POST /api/geo-audits — create a new audit and trigger the worker
 export async function POST(req: NextRequest) {
   try {
-    const ctx = await getAuthContext();
+    const ctx = await getAuthContext(); 
+    console.log("ctx --------------------------", ctx);
     const body = await req.json();
 
     const {
+      user_name,
+      user_email,
       brand_name,
       brand_url,
       competitors,
-      engines,
+      keywords,
       prompts,
     }: {
+      user_name: string;
+      user_email: string;
       brand_name: string;
       brand_url: string;
       competitors: string[];
-      engines: string[];
-      prompts: { prompt_id: number; category: string; prompt_text: string }[];
+      keywords: string[];
+      prompts: { prompt_id: number; category: string; prompt_text: string; prompt_type: string }[];
     } = body;
 
     // Validate
-    if (!brand_name || !brand_url || !prompts?.length || !engines?.length) {
+    if (!brand_name || !brand_url || !prompts?.length) {
       return NextResponse.json(
-        { error: "brand_name, brand_url, prompts, and engines are required." },
+        { error: "brand_name, brand_url, and prompts are required." },
         { status: 400 }
       );
     }
 
     const supabase = await createClient();
 
+    // Hardcode all available engines as requested
+    const allEngines = [
+      "openai",
+      "anthropic",
+      "google",
+      "perplexity",
+      "xai",
+      "google_ai_mode",
+      "google_ai_overview",
+    ];
+
     // 1. Create the audit row
     const { data: audit, error: auditErr } = await supabase
       .from("geo_audits")
       .insert({
         created_by: ctx.userId,
+        user_name: user_name || null,
+        user_email: user_email || null,
         brand_name,
         brand_url,
         competitors: competitors || [],
-        engines,
+        keywords: keywords || [],
+        engines: allEngines,
         status: "pending",
-        progress_total: prompts.length * engines.length,
+        progress_total: prompts.length * allEngines.length,
       })
       .select("id")
       .single();
@@ -92,6 +111,7 @@ export async function POST(req: NextRequest) {
       prompt_id: p.prompt_id,
       category: p.category,
       prompt_text: p.prompt_text,
+      prompt_type: p.prompt_type || 'ranking',
     }));
 
     const { error: promptErr } = await supabase
