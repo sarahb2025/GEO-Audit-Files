@@ -47,6 +47,7 @@ export default function AuditsPage() {
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
+    console.log("a")
   }
 
   function formatDate(dateStr: string) {
